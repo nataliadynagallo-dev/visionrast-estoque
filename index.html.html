@@ -1,0 +1,1066 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VISIONRAST - Controle de Estoque, Validade e Rastreabilidade</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- SheetJS para exportação em Excel -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased min-h-screen flex flex-col">
+
+    <!-- Top Header -->
+    <header class="bg-indigo-900 text-white shadow-lg sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center">
+            <div class="flex items-center space-x-3">
+                <div class="bg-indigo-700 p-2 rounded-lg text-emerald-400">
+                    <i class="fa-solid fa-boxes-stacked text-2xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-tight">VISIONRAST</h1>
+                    <p class="text-xs text-indigo-200">Gestão de Estoque, Lotes, Validades & Movimentações Segmentadas</p>
+                </div>
+            </div>
+            <div class="flex items-center space-x-3 mt-2 sm:mt-0">
+                <button onclick="exportToExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-3 py-2 rounded-lg shadow transition flex items-center space-x-1.5">
+                    <i class="fa-solid fa-file-excel"></i>
+                    <span>Exportar Planilha Excel</span>
+                </button>
+                <button onclick="resetData()" class="bg-rose-600/80 hover:bg-rose-700 text-white text-xs font-semibold px-3 py-2 rounded-lg shadow transition flex items-center space-x-1.5" title="Restaurar dados iniciais">
+                    <i class="fa-solid fa-rotate-right"></i>
+                    <span>Resetar Dados</span>
+                </button>
+            </div>
+        </div>
+        <!-- Navigation Tabs -->
+        <div class="bg-indigo-950 px-4">
+            <div class="max-w-7xl mx-auto flex space-x-1 overflow-x-auto">
+                <button onclick="switchTab('dashboard')" id="btn-dashboard" class="tab-btn px-4 py-2.5 text-sm font-medium border-b-2 border-emerald-400 text-emerald-400 flex items-center space-x-2 transition">
+                    <i class="fa-solid fa-chart-pie"></i><span>Dashboard & KPIs</span>
+                </button>
+                <button onclick="switchTab('estoque')" id="btn-estoque" class="tab-btn px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-indigo-300 hover:text-white flex items-center space-x-2 transition">
+                    <i class="fa-solid fa-warehouse"></i><span>Estoque por Lote</span>
+                </button>
+                <button onclick="switchTab('movimentacoes')" id="btn-movimentacoes" class="tab-btn px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-indigo-300 hover:text-white flex items-center space-x-2 transition">
+                    <i class="fa-solid fa-right-left"></i><span>Movimentações</span>
+                </button>
+                <button onclick="switchTab('descartes')" id="btn-descartes" class="tab-btn px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-indigo-300 hover:text-white flex items-center space-x-2 transition">
+                    <i class="fa-solid fa-trash-can"></i><span>Descartes</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="max-w-7xl mx-auto px-4 py-6 flex-grow w-full">
+
+        <!-- ================= TAB 1: DASHBOARD ================= -->
+        <div id="tab-dashboard" class="tab-content active space-y-6">
+            <!-- KPI Cards -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex items-center space-x-4">
+                    <div class="bg-indigo-50 text-indigo-600 p-3 rounded-lg"><i class="fa-solid fa-boxes-stacked text-xl"></i></div>
+                    <div>
+                        <p class="text-xs font-medium text-slate-500 uppercase">Total Lotes Ativos</p>
+                        <h3 id="kpi-total-lotes" class="text-2xl font-bold text-slate-900">0</h3>
+                    </div>
+                </div>
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex items-center space-x-4">
+                    <div class="bg-emerald-50 text-emerald-600 p-3 rounded-lg"><i class="fa-solid fa-check-circle text-xl"></i></div>
+                    <div>
+                        <p class="text-xs font-medium text-slate-500 uppercase">Lotes OK</p>
+                        <h3 id="kpi-lotes-ok" class="text-2xl font-bold text-emerald-600">0</h3>
+                    </div>
+                </div>
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex items-center space-x-4">
+                    <div class="bg-amber-50 text-amber-600 p-3 rounded-lg"><i class="fa-solid fa-triangle-exclamation text-xl"></i></div>
+                    <div>
+                        <p class="text-xs font-medium text-slate-500 uppercase">Vence em Até 30 Dias</p>
+                        <h3 id="kpi-lotes-warning" class="text-2xl font-bold text-amber-600">0</h3>
+                    </div>
+                </div>
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex items-center space-x-4">
+                    <div class="bg-rose-50 text-rose-600 p-3 rounded-lg"><i class="fa-solid fa-circle-xmark text-xl"></i></div>
+                    <div>
+                        <p class="text-xs font-medium text-slate-500 uppercase">Lotes Vencidos</p>
+                        <h3 id="kpi-lotes-expired" class="text-2xl font-bold text-rose-600">0</h3>
+                    </div>
+                </div>
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex items-center space-x-4">
+                    <div class="bg-purple-50 text-purple-600 p-3 rounded-lg"><i class="fa-solid fa-ban text-xl"></i></div>
+                    <div>
+                        <p class="text-xs font-medium text-slate-500 uppercase">Qtd. Total Descartada</p>
+                        <h3 id="kpi-total-descartada" class="text-2xl font-bold text-purple-600">0</h3>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Actions Banner -->
+            <div class="bg-gradient-to-r from-indigo-800 to-indigo-950 rounded-2xl p-6 text-white shadow-md flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
+                <div>
+                    <h2 class="text-lg font-bold">VISIONRAST - Painel de Controle Logístico</h2>
+                    <p class="text-xs text-indigo-200 max-w-xl mt-1">Cadastre novos lotes, registre saídas rápidas para abastecimento de mercado ou transferências. O sistema atualiza saldos e validades automaticamente.</p>
+                </div>
+                <div class="flex space-x-3">
+                    <button onclick="switchTab('estoque'); openModal('lote')" class="bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold px-4 py-2.5 rounded-lg shadow transition flex items-center space-x-2">
+                        <i class="fa-solid fa-plus"></i><span>Novo Lote</span>
+                    </button>
+                    <button onclick="switchTab('movimentacoes'); openModal('mov')" class="bg-white/10 hover:bg-white/20 text-white text-xs font-semibold px-4 py-2.5 rounded-lg border border-white/20 transition flex items-center space-x-2">
+                        <i class="fa-solid fa-right-left"></i><span>Nova Movimentação</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Recent Activity Tables on Dashboard -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Alertas de Validade Imminente -->
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="font-bold text-slate-800 text-sm flex items-center space-x-2">
+                            <i class="fa-solid fa-triangle-exclamation text-amber-500"></i>
+                            <span>Lotes Próximos do Vencimento ou Vencidos</span>
+                        </h3>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs text-slate-600">
+                            <thead class="bg-slate-100 text-slate-700 uppercase">
+                                <tr>
+                                    <th class="p-2.5">Item / Lote</th>
+                                    <th class="p-2.5">Validade</th>
+                                    <th class="p-2.5">Saldo</th>
+                                    <th class="p-2.5">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="dashboard-alerts-body" class="divide-y divide-slate-100">
+                                <!-- Preenchido por JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Últimas Movimentações -->
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="font-bold text-slate-800 text-sm flex items-center space-x-2">
+                            <i class="fa-solid fa-clock-rotate-left text-indigo-600"></i>
+                            <span>Últimas Movimentações Registradas</span>
+                        </h3>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs text-slate-600">
+                            <thead class="bg-slate-100 text-slate-700 uppercase">
+                                <tr>
+                                    <th class="p-2.5">Data</th>
+                                    <th class="p-2.5">Tipo</th>
+                                    <th class="p-2.5">Item / Lote</th>
+                                    <th class="p-2.5">Qtd</th>
+                                </tr>
+                            </thead>
+                            <tbody id="dashboard-mov-body" class="divide-y divide-slate-100">
+                                <!-- Preenchido por JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= TAB 2: ESTOQUE POR LOTE ================= -->
+        <div id="tab-estoque" class="tab-content space-y-4">
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col sm:flex-row justify-between items-center gap-4">
+                <div class="flex items-center space-x-3 w-full sm:w-auto">
+                    <div class="relative w-full sm:w-72">
+                        <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-400">
+                            <i class="fa-solid fa-search"></i>
+                        </span>
+                        <input type="text" id="search-estoque" onkeyup="renderEstoque()" placeholder="Buscar por código, descrição ou lote..." class="w-full pl-9 pr-4 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                    <select id="filter-status" onchange="renderEstoque()" class="py-2 px-3 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <option value="">Todos os Status</option>
+                        <option value="OK">OK</option>
+                        <option value="VENCE EM ATÉ 30 DIAS">Vence em até 30 dias</option>
+                        <option value="VENCIDO">Vencido</option>
+                        <option value="SEM SALDO">Sem Saldo</option>
+                    </select>
+                </div>
+                <button onclick="openModal('lote')" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-4 py-2 rounded-lg shadow transition flex items-center space-x-2 whitespace-nowrap">
+                    <i class="fa-solid fa-plus"></i>
+                    <span>Cadastrar Novo Lote</span>
+                </button>
+            </div>
+
+            <!-- Tabela Estoque por Lote -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs text-slate-700">
+                        <thead class="bg-slate-100 uppercase text-slate-600 font-semibold border-b border-slate-200">
+                            <tr>
+                                <th class="p-3">Código</th>
+                                <th class="p-3">Descrição do Produto</th>
+                                <th class="p-3">Lote</th>
+                                <th class="p-3">Validade Final</th>
+                                <th class="p-3 text-center">Qtd. Receb.</th>
+                                <th class="p-3 text-center">Abastecida</th>
+                                <th class="p-3 text-center">Descartada</th>
+                                <th class="p-3 text-center font-bold">Saldo</th>
+                                <th class="p-3 text-center">Dias / Venc.</th>
+                                <th class="p-3 text-center">Status</th>
+                                <th class="p-3 text-center">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="table-estoque-body" class="divide-y divide-slate-100">
+                            <!-- Preenchido via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= TAB 3: MOVIMENTAÇÕES ================= -->
+        <div id="tab-movimentacoes" class="tab-content space-y-4">
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col sm:flex-row justify-between items-center gap-4">
+                <div class="flex items-center space-x-3 w-full sm:w-auto">
+                    <select id="filter-mov-tipo" onchange="renderMovimentacoes()" class="py-2 px-3 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <option value="">Todos os Tipos de Movimentação</option>
+                        <option value="Recebimento">Recebimento</option>
+                        <option value="Abastecimento do mercado">Abastecimento do mercado</option>
+                        <option value="Transferência">Transferência</option>
+                        <option value="Devolução">Devolução</option>
+                        <option value="Ajuste de estoque">Ajuste de estoque</option>
+                    </select>
+                </div>
+                <button onclick="openModal('mov')" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-4 py-2 rounded-lg shadow transition flex items-center space-x-2 whitespace-nowrap">
+                    <i class="fa-solid fa-right-left"></i>
+                    <span>Nova Movimentação</span>
+                </button>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs text-slate-700">
+                        <thead class="bg-slate-100 uppercase text-slate-600 font-semibold border-b border-slate-200">
+                            <tr>
+                                <th class="p-3">Data</th>
+                                <th class="p-3">Tipo</th>
+                                <th class="p-3">Código / Produto</th>
+                                <th class="p-3">Lote</th>
+                                <th class="p-3 text-center">Quantidade</th>
+                                <th class="p-3">Origem</th>
+                                <th class="p-3">Destino</th>
+                                <th class="p-3">Responsável</th>
+                                <th class="p-3">Conferido por</th>
+                                <th class="p-3">Documento/OS</th>
+                            </tr>
+                        </thead>
+                        <tbody id="table-mov-body" class="divide-y divide-slate-100">
+                            <!-- Preenchido via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= TAB 4: DESCARTES ================= -->
+        <div id="tab-descartes" class="tab-content space-y-4">
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex justify-between items-center">
+                <div class="text-xs text-slate-500">
+                    <span class="font-bold text-slate-700">Controle de Descartes:</span> Lotes e itens descartados por avaria, vencimento ou contaminação.
+                </div>
+                <button onclick="openModal('desc')" class="bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold px-4 py-2 rounded-lg shadow transition flex items-center space-x-2 whitespace-nowrap">
+                    <i class="fa-solid fa-trash-can"></i>
+                    <span>Registrar Descarte</span>
+                </button>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs text-slate-700">
+                        <thead class="bg-slate-100 uppercase text-slate-600 font-semibold border-b border-slate-200">
+                            <tr>
+                                <th class="p-3">Data</th>
+                                <th class="p-3">Código / Produto</th>
+                                <th class="p-3">Lote</th>
+                                <th class="p-3 text-center">Qtd. Descartada</th>
+                                <th class="p-3">Motivo</th>
+                                <th class="p-3">Identificado por</th>
+                                <th class="p-3">Autorizado por</th>
+                                <th class="p-3">Destino</th>
+                            </tr>
+                        </thead>
+                        <tbody id="table-desc-body" class="divide-y divide-slate-100">
+                            <!-- Preenchido via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- ================= MODALS ================= -->
+
+    <!-- Modal Novo Lote -->
+    <div id="modal-lote" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 space-y-4">
+            <div class="flex justify-between items-center border-b pb-3">
+                <h3 class="font-bold text-slate-800 text-base flex items-center space-x-2">
+                    <i class="fa-solid fa-boxes-stacked text-indigo-600"></i>
+                    <span>Cadastrar Novo Lote (Completo)</span>
+                </h3>
+                <button onclick="closeModal('lote')" class="text-slate-400 hover:text-slate-600 text-lg"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form id="form-lote" onsubmit="saveLote(event)" class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">Código do Item *</label>
+                    <input type="text" id="lote-codigo" required class="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-indigo-500" placeholder="Ex: PRD-001">
+                </div>
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">Descrição do Produto *</label>
+                    <input type="text" id="lote-descricao" required class="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-indigo-500" placeholder="Ex: Rivotril 0.5mg">
+                </div>
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">Número do Lote *</label>
+                    <input type="text" id="lote-lote" required class="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-indigo-500" placeholder="Ex: LOTE78926">
+                </div>
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">Unidade *</label>
+                    <select id="lote-unidade" class="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-indigo-500">
+                        <option value="UN">UN</option>
+                        <option value="CX">CX</option>
+                        <option value="KG">KG</option>
+                        <option value="L">L</option>
+                        <option value="PCT">PCT</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">Qtd. Recebida *</label>
+                    <input type="number" id="lote-qtd" required min="1" class="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-indigo-500" placeholder="100">
+                </div>
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">Data de Recebimento *</label>
+                    <input type="date" id="lote-data-rec" required class="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">Data de Validade Inicial</label>
+                    <input type="date" id="lote-val-ini" class="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">Data de Validade Final *</label>
+                    <input type="date" id="lote-val-fim" required class="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">Fornecedor</label>
+                    <input type="text" id="lote-fornecedor" class="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-indigo-500" placeholder="Nome do Fornecedor">
+                </div>
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">Quem Recebeu</label>
+                    <input type="text" id="lote-quem-rec" class="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-indigo-500" placeholder="Responsável">
+                </div>
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">Endereço de Entrada</label>
+                    <input type="text" id="lote-end-ent" class="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-indigo-500" placeholder="Ex: RUA-01-A">
+                </div>
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">Endereço de Consumo</label>
+                    <input type="text" id="lote-end-cons" class="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-indigo-500" placeholder="Ex: GÔNDOLA-03">
+                </div>
+                <div class="sm:col-span-2">
+                    <label class="block font-medium text-slate-700 mb-1">Observações</label>
+                    <input type="text" id="lote-obs" class="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-indigo-500" placeholder="Notas adicionais...">
+                </div>
+                <div class="sm:col-span-2 flex justify-end space-x-2 pt-3 border-t">
+                    <button type="button" onclick="closeModal('lote')" class="px-4 py-2 bg-slate-200 text-slate-700 font-semibold rounded-lg hover:bg-slate-300">Cancelar</button>
+                    <button type="submit" class="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 shadow">Salvar Lote</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Nova Movimentação Dinâmica (Segmentada) -->
+    <div id="modal-mov" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-xl max-w-xl w-full max-h-[90vh] overflow-y-auto p-6 space-y-4">
+            <div class="flex justify-between items-center border-b pb-3">
+                <h3 class="font-bold text-slate-800 text-base flex items-center space-x-2">
+                    <i class="fa-solid fa-right-left text-indigo-600"></i>
+                    <span>Registrar Movimentação</span>
+                </h3>
+                <button onclick="closeModal('mov')" class="text-slate-400 hover:text-slate-600 text-lg"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form id="form-mov" onsubmit="saveMov(event)" class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">Data *</label>
+                    <input type="date" id="mov-data" required class="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">Tipo de Movimentação *</label>
+                    <select id="mov-tipo" onchange="toggleMovFields()" required class="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-indigo-500">
+                        <option value="Abastecimento do mercado">Abastecimento do mercado (Simplificado)</option>
+                        <option value="Transferência">Transferência</option>
+                        <option value="Recebimento">Recebimento</option>
+                        <option value="Devolução">Devolução</option>
+                        <option value="Ajuste de estoque">Ajuste de estoque</option>
+                    </select>
+                </div>
+                <div class="sm:col-span-2">
+                    <label class="block font-medium text-slate-700 mb-1">Selecione o Lote em Estoque *</label>
+                    <select id="mov-lote-select" onchange="onSelectLoteMov()" required class="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-indigo-500">
+                        <!-- Preenchido via JS -->
+                    </select>
+                </div>
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">Quantidade *</label>
+                    <input type="number" id="mov-qtd" required min="1" class="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-indigo-500" placeholder="Quantidade">
+                </div>
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">Unidade</label>
+                    <input type="text" id="mov-unidade" readonly class="w-full p-2.5 border bg-slate-100 rounded-lg">
+                </div>
+                
+                <!-- Campos condicionais para Abastecimento (somente o necessário) ou Completo para outros -->
+                <div id="field-origem">
+                    <label class="block font-medium text-slate-700 mb-1">Endereço de Origem</label>
+                    <input type="text" id="mov-origem" class="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-indigo-500" placeholder="Ex: Almoxarifado">
+                </div>
+                <div id="field-destino">
+                    <label class="block font-medium text-slate-700 mb-1">Endereço de Destino / Consumo</label>
+                    <input type="text" id="mov-destino" class="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-indigo-500" placeholder="Ex: Gôndola 02">
+                </div>
+                <div id="field-resp">
+                    <label class="block font-medium text-slate-700 mb-1">Responsável pela Movimentação</label>
+                    <input type="text" id="mov-resp" class="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-indigo-500" placeholder="Nome">
+                </div>
+                <div id="field-conf" class="extra-field">
+                    <label class="block font-medium text-slate-700 mb-1">Conferido por</label>
+                    <input type="text" id="mov-conf" class="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-indigo-500" placeholder="Nome">
+                </div>
+                <div id="field-doc" class="extra-field">
+                    <label class="block font-medium text-slate-700 mb-1">Documento / OS</label>
+                    <input type="text" id="mov-doc" class="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-indigo-500" placeholder="NF ou OS">
+                </div>
+                <div id="field-obs" class="sm:col-span-2 extra-field">
+                    <label class="block font-medium text-slate-700 mb-1">Observações</label>
+                    <input type="text" id="mov-obs" class="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-indigo-500" placeholder="Notas...">
+                </div>
+
+                <div class="sm:col-span-2 flex justify-end space-x-2 pt-3 border-t">
+                    <button type="button" onclick="closeModal('mov')" class="px-4 py-2 bg-slate-200 text-slate-700 font-semibold rounded-lg hover:bg-slate-300">Cancelar</button>
+                    <button type="submit" class="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 shadow">Registrar Movimentação</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Registrar Descarte -->
+    <div id="modal-desc" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-xl max-w-xl w-full max-h-[90vh] overflow-y-auto p-6 space-y-4">
+            <div class="flex justify-between items-center border-b pb-3">
+                <h3 class="font-bold text-slate-800 text-base flex items-center space-x-2">
+                    <i class="fa-solid fa-trash-can text-rose-600"></i>
+                    <span>Registrar Descarte de Lote</span>
+                </h3>
+                <button onclick="closeModal('desc')" class="text-slate-400 hover:text-slate-600 text-lg"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form id="form-desc" onsubmit="saveDescarte(event)" class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">Data do Descarte *</label>
+                    <input type="date" id="desc-data" required class="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-rose-500">
+                </div>
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">Motivo do Descarte *</label>
+                    <select id="desc-motivo" required class="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-rose-500">
+                        <option value="Vencido">Vencido</option>
+                        <option value="Avariado">Avariado</option>
+                        <option value="Embalagem violada">Embalagem violada</option>
+                        <option value="Contaminação">Contaminação</option>
+                        <option value="Recolhimento">Recolhimento</option>
+                        <option value="Outro">Outro</option>
+                    </select>
+                </div>
+                <div class="sm:col-span-2">
+                    <label class="block font-medium text-slate-700 mb-1">Selecione o Lote em Estoque *</label>
+                    <select id="desc-lote-select" onchange="onSelectLoteDesc()" required class="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-rose-500">
+                        <!-- Preenchido via JS -->
+                    </select>
+                </div>
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">Quantidade Descartada *</label>
+                    <input type="number" id="desc-qtd" required min="1" class="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-rose-500" placeholder="Qtd a descartar">
+                </div>
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">Unidade</label>
+                    <input type="text" id="desc-unidade" readonly class="w-full p-2.5 border bg-slate-100 rounded-lg">
+                </div>
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">Quem Identificou</label>
+                    <input type="text" id="desc-ident" class="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-rose-500" placeholder="Nome">
+                </div>
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">Quem Autorizou</label>
+                    <input type="text" id="desc-aut" class="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-rose-500" placeholder="Nome">
+                </div>
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">Quem Realizou o Descarte</label>
+                    <input type="text" id="desc-real" class="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-rose-500" placeholder="Nome">
+                </div>
+                <div>
+                    <label class="block font-medium text-slate-700 mb-1">Destino do Descarte</label>
+                    <input type="text" id="desc-destino" class="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-rose-500" placeholder="Ex: Incineração">
+                </div>
+                <div class="sm:col-span-2">
+                    <label class="block font-medium text-slate-700 mb-1">Evidência / Documento</label>
+                    <input type="text" id="desc-evidencia" class="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-rose-500" placeholder="Laudo ou NF">
+                </div>
+                <div class="sm:col-span-2">
+                    <label class="block font-medium text-slate-700 mb-1">Observações</label>
+                    <input type="text" id="desc-obs" class="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-rose-500" placeholder="Notas...">
+                </div>
+                <div class="sm:col-span-2 flex justify-end space-x-2 pt-3 border-t">
+                    <button type="button" onclick="closeModal('desc')" class="px-4 py-2 bg-slate-200 text-slate-700 font-semibold rounded-lg hover:bg-slate-300">Cancelar</button>
+                    <button type="submit" class="px-4 py-2 bg-rose-600 text-white font-semibold rounded-lg hover:bg-rose-700 shadow">Confirmar Descarte</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Application Script -->
+    <script>
+        const initialEstoque = [
+            {
+                id: "1",
+                codigo: "PRD-001",
+                descricao: "Rivotril 0.5mg (Controlado)",
+                lote: "LOTE78926",
+                unidade: "CX",
+                qtdRecebida: 150,
+                dataRecebimento: "2026-08-10",
+                dataValidadeIni: "2026-08-10",
+                dataValidadeFim: "2026-11-25",
+                fornecedor: "Roche Farmacêutica",
+                quemRecebeu: "Natália Dyna",
+                localPosicao: "Almoxarifado A",
+                enderecoEntrada: "RUA-01-A",
+                enderecoConsumo: "GÔNDOLA-PHARMA",
+                qtdAbastecida: 50,
+                qtdDescartada: 0,
+                observacoes: "Lote padrão controlado"
+            }
+        ];
+
+        const initialMovimentacoes = [
+            {
+                id: "m1",
+                data: "2026-08-10",
+                tipo: "Recebimento",
+                codigo: "PRD-001",
+                descricao: "Rivotril 0.5mg (Controlado)",
+                lote: "LOTE78926",
+                quantidade: 150,
+                unidade: "CX",
+                origem: "Fornecedor Roche",
+                destino: "RUA-01-A",
+                responsavel: "Natália Dyna",
+                conferidoPor: "Carlos Silva",
+                documento: "NF-98321",
+                observacoes: "Recebimento conferido"
+            },
+            {
+                id: "m2",
+                data: "2026-08-15",
+                tipo: "Abastecimento do mercado",
+                codigo: "PRD-001",
+                descricao: "Rivotril 0.5mg (Controlado)",
+                lote: "LOTE78926",
+                quantidade: 50,
+                unidade: "CX",
+                origem: "RUA-01-A",
+                destino: "GÔNDOLA-PHARMA",
+                responsavel: "Natália Dyna",
+                conferidoPor: "-",
+                documento: "-",
+                observacoes: "Reposição rápida de gôndola"
+            }
+        ];
+
+        const initialDescartes = [];
+
+        let dbEstoque = JSON.parse(localStorage.getItem('db_estoque')) || initialEstoque;
+        let dbMov = JSON.parse(localStorage.getItem('db_mov')) || initialMovimentacoes;
+        let dbDesc = JSON.parse(localStorage.getItem('db_desc')) || initialDescartes;
+
+        window.addEventListener('DOMContentLoaded', () => {
+            setDefaultDates();
+            refreshAll();
+            toggleMovFields();
+        });
+
+        function setDefaultDates() {
+            const today = new Date().toISOString().split('T')[0];
+            if(document.getElementById('lote-data-rec')) document.getElementById('lote-data-rec').value = today;
+            if(document.getElementById('lote-val-fim')) document.getElementById('lote-val-fim').value = new Date(Date.now() + 180*86400000).toISOString().split('T')[0];
+            if(document.getElementById('mov-data')) document.getElementById('mov-data').value = today;
+            if(document.getElementById('desc-data')) document.getElementById('desc-data').value = today;
+        }
+
+        function saveData() {
+            localStorage.setItem('db_estoque', JSON.stringify(dbEstoque));
+            localStorage.setItem('db_mov', JSON.stringify(dbMov));
+            localStorage.setItem('db_desc', JSON.stringify(dbDesc));
+            refreshAll();
+        }
+
+        function resetData() {
+            if(confirm("Deseja restaurar os dados de demonstração iniciais?")) {
+                dbEstoque = JSON.parse(JSON.stringify(initialEstoque));
+                dbMov = JSON.parse(JSON.stringify(initialMovimentacoes));
+                dbDesc = JSON.parse(JSON.stringify(initialDescartes));
+                saveData();
+            }
+        }
+
+        function refreshAll() {
+            renderDashboard();
+            renderEstoque();
+            renderMovimentacoes();
+            renderDescartes();
+            populateLoteSelects();
+        }
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(el => {
+                el.classList.remove('border-emerald-400', 'text-emerald-400');
+                el.classList.add('border-transparent', 'text-indigo-300');
+            });
+            document.getElementById('tab-' + tabId).classList.add('active');
+            const activeBtn = document.getElementById('btn-' + tabId);
+            activeBtn.classList.remove('border-transparent', 'text-indigo-300');
+            activeBtn.classList.add('border-emerald-400', 'text-emerald-400');
+        }
+
+        function openModal(type) {
+            document.getElementById('modal-' + type).classList.remove('hidden');
+            if(type === 'mov' || type === 'desc') {
+                populateLoteSelects();
+                toggleMovFields();
+            }
+        }
+
+        function closeModal(type) {
+            document.getElementById('modal-' + type).classList.add('hidden');
+        }
+
+        // Segmentação inteligente de campos de movimentação
+        function toggleMovFields() {
+            const tipo = document.getElementById('mov-tipo').value;
+            const extraFields = document.querySelectorAll('.extra-field');
+            
+            if (tipo === "Abastecimento do mercado") {
+                // Esconde campos complexos/burocráticos, mostrando só o essencial para abastecer rápido
+                extraFields.forEach(el => el.style.display = 'none');
+            } else {
+                // Mostra todos os campos para Recebimento, Transferência, etc.
+                extraFields.forEach(el => el.style.display = 'block');
+            }
+        }
+
+        function calculateLotMetrics(loteItem) {
+            let saldo = Number(loteItem.qtdRecebida) - Number(loteItem.qtdAbastecida) - Number(loteItem.qtdDescartada);
+            if(saldo < 0) saldo = 0;
+
+            const today = new Date();
+            today.setHours(0,0,0,0);
+            const valFim = new Date(loteItem.dataValidadeFim);
+            valFim.setHours(0,0,0,0);
+
+            const diffTime = valFim - today;
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+            let status = "OK";
+            if(saldo <= 0) {
+                status = "SEM SALDO";
+            } else if(diffDays < 0) {
+                status = "VENCIDO";
+            } else if(diffDays <= 30) {
+                status = "VENCE EM ATÉ 30 DIAS";
+            }
+
+            return { saldo, diffDays, status };
+        }
+
+        function renderDashboard() {
+            let totalLotes = dbEstoque.length;
+            let countOk = 0;
+            let countWarn = 0;
+            let countExpired = 0;
+            let totalDescartada = 0;
+
+            dbDesc.forEach(d => totalDescartada += Number(d.quantidade));
+
+            let alertsHtml = "";
+            let movHtml = "";
+
+            dbEstoque.forEach(item => {
+                const metrics = calculateLotMetrics(item);
+                if(metrics.status === "OK") countOk++;
+                else if(metrics.status === "VENCE EM ATÉ 30 DIAS") countWarn++;
+                else if(metrics.status === "VENCIDO") countExpired++;
+
+                if(metrics.status === "VENCIDO" || metrics.status === "VENCE EM ATÉ 30 DIAS") {
+                    let badgeClass = metrics.status === "VENCIDO" ? "bg-rose-100 text-rose-700" : "bg-amber-100 text-amber-700";
+                    alertsHtml += `
+                        <tr class="hover:bg-slate-50">
+                            <td class="p-2.5 font-medium text-slate-800">${item.descricao} <br><span class="text-[10px] text-slate-400">Lote: ${item.lote}</span></td>
+                            <td class="p-2.5">${item.dataValidadeFim}</td>
+                            <td class="p-2.5">${metrics.saldo} ${item.unidade}</td>
+                            <td class="p-2.5"><span class="px-2 py-0.5 rounded-full text-[10px] font-semibold ${badgeClass}">${metrics.status}</span></td>
+                        </tr>
+                    `;
+                }
+            });
+
+            if(!alertsHtml) {
+                alertsHtml = `<tr><td colspan="4" class="p-4 text-center text-slate-400">Nenhum lote crítico no momento.</td></tr>`;
+            }
+
+            const recentMov = [...dbMov].reverse().slice(0, 5);
+            recentMov.forEach(m => {
+                movHtml += `
+                    <tr class="hover:bg-slate-50">
+                        <td class="p-2.5">${m.data}</td>
+                        <td class="p-2.5 font-medium text-indigo-700">${m.tipo}</td>
+                        <td class="p-2.5">${m.descricao} <span class="text-[10px] text-slate-400">(${m.lote})</span></td>
+                        <td class="p-2.5 font-bold">${m.quantidade} ${m.unidade || ''}</td>
+                    </tr>
+                `;
+            });
+            if(!movHtml) {
+                movHtml = `<tr><td colspan="4" class="p-4 text-center text-slate-400">Nenhuma movimentação registrada.</td></tr>`;
+            }
+
+            document.getElementById('kpi-total-lotes').innerText = totalLotes;
+            document.getElementById('kpi-lotes-ok').innerText = countOk;
+            document.getElementById('kpi-lotes-warning').innerText = countWarn;
+            document.getElementById('kpi-lotes-expired').innerText = countExpired;
+            document.getElementById('kpi-total-descartada').innerText = totalDescartada;
+
+            document.getElementById('dashboard-alerts-body').innerHTML = alertsHtml;
+            document.getElementById('dashboard-mov-body').innerHTML = movHtml;
+        }
+
+        function renderEstoque() {
+            const search = document.getElementById('search-estoque').value.toLowerCase();
+            const filterStatus = document.getElementById('filter-status').value;
+            const tbody = document.getElementById('table-estoque-body');
+            tbody.innerHTML = "";
+
+            let filtered = dbEstoque.filter(item => {
+                const metrics = calculateLotMetrics(item);
+                const matchSearch = item.codigo.toLowerCase().includes(search) || item.descricao.toLowerCase().includes(search) || item.lote.toLowerCase().includes(search);
+                const matchStatus = filterStatus === "" || metrics.status === filterStatus;
+                return matchSearch && matchStatus;
+            });
+
+            if(filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="11" class="p-6 text-center text-slate-400">Nenhum lote encontrado.</td></tr>`;
+                return;
+            }
+
+            filtered.forEach(item => {
+                const metrics = calculateLotMetrics(item);
+                let statusBadge = "";
+                if(metrics.status === "OK") statusBadge = `<span class="bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full font-semibold text-[10px]">OK</span>`;
+                else if(metrics.status === "VENCE EM ATÉ 30 DIAS") statusBadge = `<span class="bg-amber-100 text-amber-700 px-2 py-1 rounded-full font-semibold text-[10px]">VENCE EM 30 DIAS</span>`;
+                else if(metrics.status === "VENCIDO") statusBadge = `<span class="bg-rose-100 text-rose-700 px-2 py-1 rounded-full font-semibold text-[10px]">VENCIDO</span>`;
+                else statusBadge = `<span class="bg-slate-100 text-slate-600 px-2 py-1 rounded-full font-semibold text-[10px]">SEM SALDO</span>`;
+
+                tbody.innerHTML += `
+                    <tr class="hover:bg-slate-50 border-b border-slate-100">
+                        <td class="p-3 font-mono font-medium text-slate-800">${item.codigo}</td>
+                        <td class="p-3 font-medium text-slate-900">${item.descricao}<br><span class="text-[10px] text-slate-400">Fornecedor: ${item.fornecedor || '-'}</span></td>
+                        <td class="p-3 font-mono font-bold text-indigo-600">${item.lote}</td>
+                        <td class="p-3">${item.dataValidadeFim}</td>
+                        <td class="p-3 text-center">${item.qtdRecebida} ${item.unidade}</td>
+                        <td class="p-3 text-center text-indigo-600 font-semibold">${item.qtdAbastecida}</td>
+                        <td class="p-3 text-center text-rose-600 font-semibold">${item.qtdDescartada}</td>
+                        <td class="p-3 text-center font-bold text-slate-900">${metrics.saldo} ${item.unidade}</td>
+                        <td class="p-3 text-center">${metrics.diffDays >= 0 ? metrics.diffDays + ' dias' : 'Expirado'}</td>
+                        <td class="p-3 text-center">${statusBadge}</td>
+                        <td class="p-3 text-center">
+                            <button onclick="deleteLote('${item.id}')" class="text-slate-400 hover:text-rose-600 p-1" title="Excluir Lote"><i class="fa-solid fa-trash"></i></button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        // Render Movimentações com Filtro por Tipo
+        function renderMovimentacoes() {
+            const filterTipo = document.getElementById('filter-mov-tipo').value;
+            const tbody = document.getElementById('table-mov-body');
+            tbody.innerHTML = "";
+
+            let filtered = dbMov.filter(m => {
+                return filterTipo === "" || m.tipo === filterTipo;
+            });
+
+            if(filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="10" class="p-6 text-center text-slate-400">Nenhuma movimentação encontrada para este filtro.</td></tr>`;
+                return;
+            }
+
+            [...filtered].reverse().forEach(m => {
+                tbody.innerHTML += `
+                    <tr class="hover:bg-slate-50 border-b border-slate-100">
+                        <td class="p-3">${m.data}</td>
+                        <td class="p-3 font-semibold text-indigo-700">${m.tipo}</td>
+                        <td class="p-3 font-medium text-slate-800">${m.codigo} - ${m.descricao}</td>
+                        <td class="p-3 font-mono text-indigo-600">${m.lote}</td>
+                        <td class="p-3 text-center font-bold">${m.quantidade} ${m.unidade || ''}</td>
+                        <td class="p-3 text-slate-500">${m.origem || '-'}</td>
+                        <td class="p-3 text-slate-500">${m.destino || '-'}</td>
+                        <td class="p-3">${m.responsavel || '-'}</td>
+                        <td class="p-3">${m.conferidoPor || '-'}</td>
+                        <td class="p-3 font-mono text-xs">${m.documento || '-'}</td>
+                    </tr>
+                `;
+            });
+        }
+
+        function renderDescartes() {
+            const tbody = document.getElementById('table-desc-body');
+            tbody.innerHTML = "";
+
+            if(dbDesc.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="8" class="p-6 text-center text-slate-400">Nenhum descarte registrado.</td></tr>`;
+                return;
+            }
+
+            [...dbDesc].reverse().forEach(d => {
+                tbody.innerHTML += `
+                    <tr class="hover:bg-slate-50 border-b border-slate-100">
+                        <td class="p-3">${d.data}</td>
+                        <td class="p-3 font-medium text-slate-800">${d.codigo} - ${d.descricao}</td>
+                        <td class="p-3 font-mono text-rose-600 font-bold">${d.lote}</td>
+                        <td class="p-3 text-center font-bold text-rose-700">${d.quantidade} ${d.unidade}</td>
+                        <td class="p-3"><span class="bg-rose-100 text-rose-700 px-2 py-0.5 rounded-full text-[10px] font-semibold">${d.motivo}</span></td>
+                        <td class="p-3">${d.identificadoPor || '-'}</td>
+                        <td class="p-3">${d.autorizadoPor || '-'}</td>
+                        <td class="p-3 text-slate-500">${d.destino || '-'}</td>
+                    </tr>
+                `;
+            });
+        }
+
+        function populateLoteSelects() {
+            const selectMov = document.getElementById('mov-lote-select');
+            const selectDesc = document.getElementById('desc-lote-select');
+            
+            let options = `<option value="">Selecione um lote ativo...</option>`;
+            dbEstoque.forEach(item => {
+                const metrics = calculateLotMetrics(item);
+                options += `<option value="${item.id}">${item.codigo} - ${item.descricao} (Lote: ${item.lote} | Saldo: ${metrics.saldo} ${item.unidade})</option>`;
+            });
+
+            if(selectMov) selectMov.innerHTML = options;
+            if(selectDesc) selectDesc.innerHTML = options;
+        }
+
+        function onSelectLoteMov() {
+            const id = document.getElementById('mov-lote-select').value;
+            const item = dbEstoque.find(i => i.id === id);
+            if(item) {
+                document.getElementById('mov-unidade').value = item.unidade;
+                document.getElementById('mov-origem').value = item.enderecoEntrada || item.localPosicao || '';
+                document.getElementById('mov-destino').value = item.enderecoConsumo || '';
+            } else {
+                document.getElementById('mov-unidade').value = '';
+            }
+        }
+
+        function onSelectLoteDesc() {
+            const id = document.getElementById('desc-lote-select').value;
+            const item = dbEstoque.find(i => i.id === id);
+            if(item) {
+                document.getElementById('desc-unidade').value = item.unidade;
+            } else {
+                document.getElementById('desc-unidade').value = '';
+            }
+        }
+
+        function saveLote(e) {
+            e.preventDefault();
+            const novo = {
+                id: 'l_' + Date.now(),
+                codigo: document.getElementById('lote-codigo').value,
+                descricao: document.getElementById('lote-descricao').value,
+                lote: document.getElementById('lote-lote').value,
+                unidade: document.getElementById('lote-unidade').value,
+                qtdRecebida: Number(document.getElementById('lote-qtd').value),
+                dataRecebimento: document.getElementById('lote-data-rec').value,
+                dataValidadeIni: document.getElementById('lote-val-ini').value,
+                dataValidadeFim: document.getElementById('lote-val-fim').value,
+                fornecedor: document.getElementById('lote-fornecedor').value,
+                quemRecebeu: document.getElementById('lote-quem-rec').value,
+                localPosicao: document.getElementById('lote-end-ent').value,
+                enderecoEntrada: document.getElementById('lote-end-ent').value,
+                enderecoConsumo: document.getElementById('lote-end-cons').value,
+                qtdAbastecida: 0,
+                qtdDescartada: 0,
+                observacoes: document.getElementById('lote-obs').value
+            };
+
+            const movRecebimento = {
+                id: 'm_' + Date.now(),
+                data: novo.dataRecebimento,
+                tipo: "Recebimento",
+                codigo: novo.codigo,
+                descricao: novo.descricao,
+                lote: novo.lote,
+                quantidade: novo.qtdRecebida,
+                unidade: novo.unidade,
+                origem: novo.fornecedor || 'Fornecedor',
+                destino: novo.enderecoEntrada,
+                responsavel: novo.quemRecebeu,
+                conferidoPor: "Sistema",
+                documento: "AUTOMATICO",
+                observacoes: "Cadastro inicial de lote"
+            };
+
+            dbEstoque.push(novo);
+            dbMov.push(movRecebimento);
+            saveData();
+            closeModal('lote');
+            document.getElementById('form-lote').reset();
+            setDefaultDates();
+        }
+
+        function saveMov(e) {
+            e.preventDefault();
+            const loteId = document.getElementById('mov-lote-select').value;
+            const item = dbEstoque.find(i => i.id === loteId);
+            if(!item) return alert("Selecione um lote válido.");
+
+            const qtd = Number(document.getElementById('mov-qtd').value);
+            const tipo = document.getElementById('mov-tipo').value;
+
+            if(tipo === "Abastecimento do mercado") {
+                item.qtdAbastecida = Number(item.qtdAbastecida) + qtd;
+            }
+
+            const novaMov = {
+                id: 'm_' + Date.now(),
+                data: document.getElementById('mov-data').value,
+                tipo: tipo,
+                codigo: item.codigo,
+                descricao: item.descricao,
+                lote: item.lote,
+                quantidade: qtd,
+                unidade: item.unidade,
+                origem: document.getElementById('mov-origem').value || '-',
+                destino: document.getElementById('mov-destino').value || '-',
+                responsavel: document.getElementById('mov-resp').value || '-',
+                conferidoPor: document.getElementById('mov-conf') ? document.getElementById('mov-conf').value || '-' : '-',
+                documento: document.getElementById('mov-doc') ? document.getElementById('mov-doc').value || '-' : '-',
+                observacoes: document.getElementById('mov-obs') ? document.getElementById('mov-obs').value || '-' : '-'
+            };
+
+            dbMov.push(novaMov);
+            saveData();
+            closeModal('mov');
+            document.getElementById('form-mov').reset();
+            setDefaultDates();
+            toggleMovFields();
+        }
+
+        function saveDescarte(e) {
+            e.preventDefault();
+            const loteId = document.getElementById('desc-lote-select').value;
+            const item = dbEstoque.find(i => i.id === loteId);
+            if(!item) return alert("Selecione um lote válido.");
+
+            const qtd = Number(document.getElementById('desc-qtd').value);
+            item.qtdDescartada = Number(item.qtdDescartada) + qtd;
+
+            const novoDescarte = {
+                id: 'd_' + Date.now(),
+                data: document.getElementById('desc-data').value,
+                codigo: item.codigo,
+                descricao: item.descricao,
+                lote: item.lote,
+                quantidade: qtd,
+                unidade: item.unidade,
+                motivo: document.getElementById('desc-motivo').value,
+                identificadoPor: document.getElementById('desc-ident').value,
+                autorizadoPor: document.getElementById('desc-aut').value,
+                realizadoPor: document.getElementById('desc-real').value,
+                destino: document.getElementById('desc-destino').value,
+                evidencia: document.getElementById('desc-evidencia').value,
+                observacoes: document.getElementById('desc-obs').value
+            };
+
+            dbDesc.push(novoDescarte);
+            saveData();
+            closeModal('desc');
+            document.getElementById('form-desc').reset();
+            setDefaultDates();
+        }
+
+        function deleteLote(id) {
+            if(confirm("Tem certeza que deseja excluir este lote do estoque?")) {
+                dbEstoque = dbEstoque.filter(i => i.id !== id);
+                saveData();
+            }
+        }
+
+        function exportToExcel() {
+            const wb = XLSX.utils.book_new();
+
+            const wsEstoqueData = [
+                ["Código do item", "Descrição do produto", "Lote", "Unidade", "Qtd. recebida", "Data de recebimento", "Data de validade Inicial", "Data de validade Final", "Fornecedor", "Quem recebeu", "Local/posição", "Endereço de entrada", "Endereço de consumo", "Qtd. abastecida", "Qtd. descartada", "Saldo do lote", "Dias até vencer", "Status", "Observações"]
+            ];
+            dbEstoque.forEach(i => {
+                const m = calculateLotMetrics(i);
+                wsEstoqueData.push([
+                    i.codigo, i.descricao, i.lote, i.unidade, i.qtdRecebida, i.dataRecebimento, i.dataValidadeIni, i.dataValidadeFim, i.fornecedor, i.quemRecebeu, i.localPosicao, i.enderecoEntrada, i.enderecoConsumo, i.qtdAbastecida, i.qtdDescartada, m.saldo, m.diffDays, m.status, i.observacoes
+                ]);
+            });
+            const wsEstoque = XLSX.utils.aoa_to_sheet(wsEstoqueData);
+            XLSX.utils.book_append_sheet(wb, wsEstoque, "Estoque por Lote");
+
+            const wsMovData = [
+                ["Data", "Tipo de movimentação", "Código do item", "Descrição", "Lote", "Quantidade", "Unidade", "Endereço de origem", "Endereço de consumo/destino", "Responsável pela movimentação", "Conferido por", "Documento/OS", "Observações"]
+            ];
+            dbMov.forEach(m => {
+                wsMovData.push([
+                    m.data, m.tipo, m.codigo, m.descricao, m.lote, m.quantidade, m.unidade, m.origem, m.destino, m.responsavel, m.conferidoPor, m.documento, m.observacoes
+                ]);
+            });
+            const wsMov = XLSX.utils.aoa_to_sheet(wsMovData);
+            XLSX.utils.book_append_sheet(wb, wsMov, "Movimentações");
+
+            const wsDescData = [
+                ["Data do descarte", "Código do item", "Descrição", "Lote", "Quantidade descartada", "Unidade", "Motivo do descarte", "Quem identificou", "Quem autorizou", "Quem realizou o descarte", "Destino do descarte", "Evidência/Documento", "Observações"]
+            ];
+            dbDesc.forEach(d => {
+                wsDescData.push([
+                    d.data, d.codigo, d.descricao, d.lote, d.quantidade, d.unidade, d.motivo, d.identificadoPor, d.autorizadoPor, d.realizadoPor, d.destino, d.evidencia, d.observacoes
+                ]);
+            });
+            const wsDesc = XLSX.utils.aoa_to_sheet(wsDescData);
+            XLSX.utils.book_append_sheet(wb, wsDesc, "Descartes");
+
+            XLSX.writeFile(wb, "VISIONRAST_controle_estoque.xlsx");
+        }
+    </script>
+</body>
+</html>
